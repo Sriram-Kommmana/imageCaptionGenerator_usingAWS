@@ -9,31 +9,51 @@ load_dotenv()
 
 from src import aws_pipeline
 
-
 st.set_page_config(page_title="AWS Image Caption Generator", layout="centered")
 st.title("AWS Image Caption Generator")
 
-uploaded = st.file_uploader("Upload an image", type=["jpg","jpeg","png"])
+if "image" not in st.session_state:
+    st.session_state.image = None
+if "image_id" not in st.session_state:
+    st.session_state.image_id = None
+if "reset_trigger" not in st.session_state:
+    st.session_state.reset_trigger = False
+
+def reset_image():
+    st.session_state.image = None
+    st.session_state.image_id = None
+    st.session_state.reset_trigger = not st.session_state.reset_trigger
+
+
+uploaded = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"], key=st.session_state.reset_trigger)
 
 if uploaded:
     img = Image.open(uploaded).convert("RGB")
-    st.image(img, caption="Uploaded Image", use_column_width=True)
+    st.session_state.image = img
 
-    if st.button("Upload & Generate Caption"):
+if st.session_state.image:
+    img = st.session_state.image
 
-        img_bytes = BytesIO()
-        img.save(img_bytes, format="JPEG")
-        img_bytes.seek(0)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.image(img, caption="Uploaded Image", use_container_width=True)
 
-        filename = f"{uuid.uuid4()}.jpg"
+    with col2:
+        if st.button("Generate Caption"):
+            img_bytes = BytesIO()
+            img.save(img_bytes, format="JPEG")
+            img_bytes.seek(0)
 
-        image_id = aws_pipeline.upload_to_s3(img_bytes.getvalue(), filename)
-        st.success(f"Image uploaded to S3: {image_id}")
+            filename = f"{uuid.uuid4()}.jpg"
+            st.session_state.image_id = aws_pipeline.upload_to_s3(img_bytes.getvalue(), filename)
 
-        st.info("Waiting for Lambda to generate caption...")
-        caption = aws_pipeline.get_caption_from_dynamodb(image_id)
+            st.success(f"Image uploaded to S3: {st.session_state.image_id}")
+            st.info("Waiting for Lambda to generate caption...")
 
-        if caption:
-            st.success(f"Caption: {caption}")
-        else:
-            st.warning("Caption not available yet. Try again in a few seconds.")
+            with st.spinner("Generating caption..."):
+                caption = aws_pipeline.get_caption_from_dynamodb(st.session_state.image_id)
+                if caption:
+                    st.subheader("**Caption:**")
+                    st.info(f"{caption}")
+                else:
+                    st.warning("Caption not available yet. Try again in a few seconds.")
