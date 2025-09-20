@@ -4,12 +4,10 @@ from io import BytesIO
 import boto3
 from boto3.dynamodb.conditions import Key
 
-# Load AWS configs from environment
 S3_BUCKET = os.getenv("S3_BUCKET_NAME")
 DDB_TABLE_NAME = os.getenv("DDB_TABLE_NAME")
 REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 
-# AWS clients
 s3 = boto3.client("s3", region_name=REGION)
 ddb = boto3.resource("dynamodb", region_name=REGION)
 
@@ -19,7 +17,6 @@ if not DDB_TABLE_NAME:
 else:
     table = ddb.Table(DDB_TABLE_NAME)
 
-# ---- S3 Upload ----
 def upload_to_s3(file_bytes, filename):
     """
     Upload image to 'images/' folder in S3.
@@ -29,7 +26,6 @@ def upload_to_s3(file_bytes, filename):
     s3.upload_fileobj(BytesIO(file_bytes), S3_BUCKET, s3_key)
     return s3_key
 
-# ---- DynamoDB Polling ----
 def get_caption_from_dynamodb(image_id, timeout=30, interval=2):
     """
     Poll DynamoDB until a caption is available for the given ImageId.
@@ -40,7 +36,6 @@ def get_caption_from_dynamodb(image_id, timeout=30, interval=2):
 
     elapsed = 0
     while elapsed < timeout:
-        # Query all items with this partition key (ImageId)
         response = table.query(
             KeyConditionExpression=Key('ImageId').eq(image_id),
             ScanIndexForward=False,  # latest CaptionId first
@@ -48,7 +43,6 @@ def get_caption_from_dynamodb(image_id, timeout=30, interval=2):
         )
         items = response.get("Items", [])
         if items:
-            # Adjust the attribute name for caption if different
             return items[0].get("CaptionText") or items[0].get("Caption")
         time.sleep(interval)
         elapsed += interval
