@@ -38,7 +38,7 @@ def get_caption_from_dynamodb(image_id, timeout=30, interval=2):
     while elapsed < timeout:
         response = table.query(
             KeyConditionExpression=Key('ImageId').eq(image_id),
-            ScanIndexForward=False,  # latest CaptionId first
+            ScanIndexForward=False, 
             Limit=1
         )
         items = response.get("Items", [])
